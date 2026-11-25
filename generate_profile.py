@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from xml.sax.saxutils import escape
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageEnhance
 
 USER = os.environ.get('PROFILE_USERNAME', 'Dhejasvibaskar')
 OUT = Path('assets')
@@ -45,23 +45,46 @@ def fetch_profile():
 
 
 def portrait(image):
-    # Crop the public avatar to a square and turn pixels into glyphs.
-    # A circular mask, original photo colors and contrast retain recognizable features.
-    image = ImageOps.fit(image.convert('RGB'), (47, 32), method=Image.Resampling.LANCZOS)
-    lum = ImageOps.autocontrast(ImageOps.grayscale(image), cutoff=2)
-    chars = '.:-=+*#%@'
+    # Clearer ASCII portrait: fewer cells, larger glyphs, stronger contrast.
+    image = ImageOps.fit(image.convert('RGB'), (38, 26), method=Image.Resampling.LANCZOS)
+
+    gray = ImageOps.grayscale(image)
+    gray = ImageOps.autocontrast(gray, cutoff=1)
+    gray = ImageEnhance.Contrast(gray).enhance(1.8)
+    gray = ImageEnhance.Sharpness(gray).enhance(1.5)
+
+    chars = " .:-=+*#%@"
     out = []
-    for y in range(32):
-        for x in range(47):
-            dx, dy = (x - 23) / 23.5, (y - 15.5) / 16
+
+    start_x, start_y = 736, 104
+    step_x, step_y = 6.8, 10.2
+
+    for y in range(26):
+        for x in range(38):
+            dx, dy = (x - 18.5) / 18.8, (y - 12.5) / 13.0
             if dx * dx + dy * dy > 1:
                 continue
-            value = lum.getpixel((x, y))
+
+            value = gray.getpixel((x, y))
             r, g, b = image.getpixel((x, y))
-            # Blend original colors with lavender for contrast on dark backgrounds.
-            color = '#%02x%02x%02x' % (int(.72*r+ .28*167), int(.72*g+.28*139), int(.72*b+.28*250))
-            char = chars[round(value * (len(chars)-1)/255)]
-            out.append(f'<text x="{713+x*5.7:.1f}" y="{100+y*8.3:.1f}" fill="{color}" font-size="8.5" opacity="{.35+.65*value/255:.2f}">{char}</text>')
+
+            # Brighter blend for better readability on dark background
+            mix = 0.38 + 0.30 * (value / 255)
+            rr = int(r * (1 - mix) + 233 * mix)
+            gg = int(g * (1 - mix) + 221 * mix)
+            bb = int(b * (1 - mix) + 250 * mix)
+            color = f'#{rr:02x}{gg:02x}{bb:02x}'
+
+            char = chars[round(value * (len(chars) - 1) / 255)]
+            opacity = 0.58 + 0.35 * (value / 255)
+
+            out.append(
+                f'<text x="{start_x + x * step_x:.1f}" '
+                f'y="{start_y + y * step_y:.1f}" '
+                f'fill="{color}" font-size="10.2" font-weight="700" '
+                f'opacity="{opacity:.2f}">{char}</text>'
+            )
+
     return ''.join(out)
 
 
@@ -108,11 +131,11 @@ def city(user):
     cal = user['contributionsCollection']['contributionCalendar']
     cells = [(w, d['weekday'], d['contributionCount'], d['date']) for w, week in enumerate(cal['weeks']) for d in week['contributionDays']]
     peak = max((c[2] for c in cells), default=0)
-    active = sum(c[2]>0 for c in cells)
+    active = sum(c[2] > 0 for c in cells)
     blocks = []
-    for w, d, count, date in sorted(cells, key=lambda c: (c[0]*1.8+c[1]*8, c[0])):
-        x, y = 108+w*16.1-d*9, 108+w*1.8+d*8
-        h = 0 if not count else 6+58*math.log1p(count)/math.log1p(max(1,peak))
+    for w, d, count, date in sorted(cells, key=lambda c: (c[0] * 1.8 + c[1] * 8, c[0])):
+        x, y = 108 + w * 16.1 - d * 9, 108 + w * 1.8 + d * 8
+        h = 0 if not count else 6 + 58 * math.log1p(count) / math.log1p(max(1, peak))
         top = '#9e81f5' if count else '#20263b'
         side = '#5638a2' if count else '#20263b'
         front = '#392568' if count else '#20263b'
@@ -136,8 +159,8 @@ def main():
     user = fetch_profile()
     photo = Image.open(io.BytesIO(request(user['avatarUrl'])))
     OUT.mkdir(exist_ok=True)
-    (OUT/'neural-identity.svg').write_text(hero(user, photo), encoding='utf-8')
-    (OUT/'contribution-city.svg').write_text(city(user), encoding='utf-8')
+    (OUT / 'neural-identity.svg').write_text(hero(user, photo), encoding='utf-8')
+    (OUT / 'contribution-city.svg').write_text(city(user), encoding='utf-8')
     print('Generated both SVGs successfully.')
 
 
