@@ -110,8 +110,8 @@ def hero(user, photo):
    <text x="38" y="299">Dhejasvi</text>
  </g>
  <text x="42" y="354" fill="#e4e9f5" font-size="19" font-weight="bold">AI &amp; Data Science Undergraduate</text>
- <text x="42" y="384" fill="#9ba9c3" font-size="12">MACHINE LEARNING / DATA ANALYTICS</text>
- <text x="42" y="405" fill="#9ba9c3" font-size="12">COMPUTER VISION</text>
+ <text x="42" y="384" fill="#9ba9c3" font-size="12">ARTIFICIAL INTELLIGENCE / MACHINE LEARNING</text>
+ <text x="42" y="405" fill="#9ba9c3" font-size="12">DATA ANALYSIS</text>
  <line x1="40" y1="478" x2="1010" y2="478" stroke="#2f394e"/>
  <g font-size="10" letter-spacing="1.8" fill="#92a1bc">
   <text x="42" y="512">PUBLIC REPOSITORIES</text>
