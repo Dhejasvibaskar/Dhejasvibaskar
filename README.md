@@ -28,8 +28,7 @@ class Dhejasvi:
         self.interests = [
             "Artificial Intelligence",
             "Machine Learning",
-            "Data Analytics",
-            "Computer Vision"
+            "Data Analytics"
         ]
         self.focus = "Solving real-world problems with data"
 ```
