@@ -1,3 +1,67 @@
+"""Generate original, self-hosted GitHub profile SVGs. No personal access token needed."""
+import io
+import json
+import math
+import os
+from pathlib import Path
+from urllib.request import Request, urlopen
+from xml.sax.saxutils import escape
+
+from PIL import Image, ImageOps, ImageEnhance, ImageFilter
+
+USER = os.environ.get('PROFILE_USERNAME', 'Dhejasvibaskar')
+OUT = Path('assets')
+QUERY = '''query($login:String!) {
+  user(login:$login) {
+    login avatarUrl(size:512)
+    repositories(privacy:PUBLIC, ownerAffiliations:OWNER) { totalCount }
+    contributionsCollection {
+      contributionCalendar {
+        totalContributions
+        weeks { contributionDays { date weekday contributionCount } }
+      }
+    }
+  }
+}'''
+
+
+def request(url, payload=None, token=None):
+    headers = {'User-Agent': 'Neural-Identity-Profile/1.0'}
+    if payload is not None:
+        headers['Content-Type'] = 'application/json'
+    if token:
+        headers['Authorization'] = 'Bearer ' + token
+    with urlopen(Request(url, data=payload, headers=headers), timeout=40) as response:
+        return response.read()
+
+
+def fetch_profile():
+    token = os.environ['GITHUB_TOKEN']
+    payload = json.dumps({'query': QUERY, 'variables': {'login': USER}}).encode()
+    result = json.loads(request('https://api.github.com/graphql', payload, token))
+    if result.get('errors') or not result.get('data', {}).get('user'):
+        raise RuntimeError('GitHub API query failed: ' + json.dumps(result.get('errors', [])))
+    return result['data']['user']
+
+
+def portrait(image):
+    """Fine, full-color ASCII mosaic; sample a square with no forced purple tint."""
+    n = 66
+    diameter = 352
+    cx, cy = 838, 265
+    step = diameter / n
+    square = ImageOps.fit(ImageOps.exif_transpose(image).convert('RGB'),
+                          (512, 512), method=Image.Resampling.LANCZOS)
+    # A small, upward-biased crop leaves the head and shoulders visible.
+    square = square.crop((29, 11, 483, 465))
+    square = ImageEnhance.Color(square).enhance(1.10)
+    square = square.filter(ImageFilter.UnsharpMask(radius=1.5, percent=100, threshold=3))
+    pixels = square.resize((n, n), Image.Resampling.LANCZOS)
+    out = []
+    for y in range(n):
+        for x in range(n):
+            dx = (x + .5 - n / 2) / (n / 2)
+            dy = (y + .5 - n / 2) / (n / 2)
             if dx * dx + dy * dy > 1.0:
                 continue
             r, g, b = pixels.getpixel((x, y))
