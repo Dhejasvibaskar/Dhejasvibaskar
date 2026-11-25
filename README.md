@@ -1,5 +1,6 @@
-
-<h1 align="center">Hi there, I'm Dhejasvi! 👋</h1>
+<p align="center">
+  <img src="./assets/neural-identity.svg" width="100%" alt="J B Dhejasvi — Neural Identity" />
+</p>
 
 <p align="center">
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=20&pause=1000&color=A78BFA&center=true&vCenter=true&width=600&lines=AI+%26+Data+Science+Undergraduate;Machine+Learning+%7C+Data+Analytics;Explore.+Analyze.+Build.+Innovate." alt="Typing SVG" />
