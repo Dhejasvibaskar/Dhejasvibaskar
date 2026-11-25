@@ -1,90 +1,36 @@
-"""Generate original, self-hosted GitHub profile SVGs. No personal access token needed."""
-import io
-import json
-import math
-import os
-from pathlib import Path
-from urllib.request import Request, urlopen
-from xml.sax.saxutils import escape
+    square = ImageEnhance.Color(square).enhance(1.12)
+    square = square.filter(ImageFilter.UnsharpMask(radius=2, percent=120, threshold=3))
+    pixels = square.resize((cols, rows), Image.Resampling.LANCZOS)
 
-from PIL import Image, ImageOps, ImageEnhance
-
-USER = os.environ.get('PROFILE_USERNAME', 'Dhejasvibaskar')
-OUT = Path('assets')
-QUERY = '''query($login:String!) {
-  user(login:$login) {
-    login avatarUrl(size:256)
-    repositories(privacy:PUBLIC, ownerAffiliations:OWNER) { totalCount }
-    contributionsCollection {
-      contributionCalendar {
-        totalContributions
-        weeks { contributionDays { date weekday contributionCount } }
-      }
-    }
-  }
-}'''
-
-
-def request(url, payload=None, token=None):
-    headers = {'User-Agent': 'Neural-Identity-Profile/1.0'}
-    if payload is not None:
-        headers['Content-Type'] = 'application/json'
-    if token:
-        headers['Authorization'] = 'Bearer ' + token
-    with urlopen(Request(url, data=payload, headers=headers), timeout=40) as response:
-        return response.read()
-
-
-def fetch_profile():
-    token = os.environ['GITHUB_TOKEN']
-    payload = json.dumps({'query': QUERY, 'variables': {'login': USER}}).encode()
-    result = json.loads(request('https://api.github.com/graphql', payload, token))
-    if result.get('errors') or not result.get('data', {}).get('user'):
-        raise RuntimeError('GitHub API query failed: ' + json.dumps(result.get('errors', [])))
-    return result['data']['user']
-
-
-def portrait(image):
-    # Clearer ASCII portrait: fewer cells, larger glyphs, stronger contrast.
-    image = ImageOps.fit(image.convert('RGB'), (38, 26), method=Image.Resampling.LANCZOS)
-
-    gray = ImageOps.grayscale(image)
-    gray = ImageOps.autocontrast(gray, cutoff=1)
-    gray = ImageEnhance.Contrast(gray).enhance(1.8)
-    gray = ImageEnhance.Sharpness(gray).enhance(1.5)
-
-    chars = " .:-=+*#%@"
+    # Moderate contrast keeps facial midtones and shadow detail visible.
+    lum = ImageOps.grayscale(pixels)
+    lum = ImageOps.autocontrast(lum, cutoff=1)
+    lum = ImageEnhance.Contrast(lum).enhance(1.08)
+    chars = '.:;-=+*#%@'
     out = []
-
-    start_x, start_y = 736, 104
-    step_x, step_y = 6.8, 10.2
-
-    for y in range(26):
-        for x in range(38):
-            dx, dy = (x - 18.5) / 18.8, (y - 12.5) / 13.0
+    for y in range(rows):
+        for x in range(cols):
+            dx = (x + 0.5 - cols / 2) / (cols / 2)
+            dy = (y + 0.5 - rows / 2) / (rows / 2)
             if dx * dx + dy * dy > 1:
                 continue
 
-            value = gray.getpixel((x, y))
-            r, g, b = image.getpixel((x, y))
-
-            # Brighter blend for better readability on dark background
-            mix = 0.38 + 0.30 * (value / 255)
-            rr = int(r * (1 - mix) + 233 * mix)
-            gg = int(g * (1 - mix) + 221 * mix)
-            bb = int(b * (1 - mix) + 250 * mix)
-            color = f'#{rr:02x}{gg:02x}{bb:02x}'
-
-            char = chars[round(value * (len(chars) - 1) / 255)]
-            opacity = 0.58 + 0.35 * (value / 255)
-
+            value = lum.getpixel((x, y)) / 255
+            r, g, b = pixels.getpixel((x, y))
+            # Lift shadows gently while retaining the original photo colors.
+            def lift(v):
+                return min(255, round(20 + 235 * (v / 255) ** 0.72))
+            color = f'#{lift(r):02x}{lift(g):02x}{lift(b):02x}'
+            # Keep a small glyph in deep shadows rather than crushing them.
+            char = chars[round(value ** 0.75 * (len(chars) - 1))]
+            px = cx - diameter / 2 + (x + 0.5) * step_x
+            py = cy - diameter / 2 + (y + 0.5) * step_y
             out.append(
-                f'<text x="{start_x + x * step_x:.1f}" '
-                f'y="{start_y + y * step_y:.1f}" '
-                f'fill="{color}" font-size="10.2" font-weight="700" '
-                f'opacity="{opacity:.2f}">{char}</text>'
+                f'<text x="{px:.2f}" y="{py:.2f}" '
+                f'fill="{color}" font-size="{font_size}" '
+                f'text-anchor="middle" dominant-baseline="central" '
+                f'font-weight="600" opacity="0.96">{char}</text>'
             )
-
     return ''.join(out)
 
 
@@ -131,11 +77,11 @@ def city(user):
     cal = user['contributionsCollection']['contributionCalendar']
     cells = [(w, d['weekday'], d['contributionCount'], d['date']) for w, week in enumerate(cal['weeks']) for d in week['contributionDays']]
     peak = max((c[2] for c in cells), default=0)
-    active = sum(c[2] > 0 for c in cells)
+    active = sum(c[2]>0 for c in cells)
     blocks = []
-    for w, d, count, date in sorted(cells, key=lambda c: (c[0] * 1.8 + c[1] * 8, c[0])):
-        x, y = 108 + w * 16.1 - d * 9, 108 + w * 1.8 + d * 8
-        h = 0 if not count else 6 + 58 * math.log1p(count) / math.log1p(max(1, peak))
+    for w, d, count, date in sorted(cells, key=lambda c: (c[0]*1.8+c[1]*8, c[0])):
+        x, y = 108+w*16.1-d*9, 108+w*1.8+d*8
+        h = 0 if not count else 6+58*math.log1p(count)/math.log1p(max(1,peak))
         top = '#9e81f5' if count else '#20263b'
         side = '#5638a2' if count else '#20263b'
         front = '#392568' if count else '#20263b'
@@ -159,8 +105,8 @@ def main():
     user = fetch_profile()
     photo = Image.open(io.BytesIO(request(user['avatarUrl'])))
     OUT.mkdir(exist_ok=True)
-    (OUT / 'neural-identity.svg').write_text(hero(user, photo), encoding='utf-8')
-    (OUT / 'contribution-city.svg').write_text(city(user), encoding='utf-8')
+    (OUT/'neural-identity.svg').write_text(hero(user, photo), encoding='utf-8')
+    (OUT/'contribution-city.svg').write_text(city(user), encoding='utf-8')
     print('Generated both SVGs successfully.')
 
 
