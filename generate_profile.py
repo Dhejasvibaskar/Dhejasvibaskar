@@ -1,36 +1,17 @@
-    square = ImageEnhance.Color(square).enhance(1.12)
-    square = square.filter(ImageFilter.UnsharpMask(radius=2, percent=120, threshold=3))
-    pixels = square.resize((cols, rows), Image.Resampling.LANCZOS)
-
-    # Moderate contrast keeps facial midtones and shadow detail visible.
-    lum = ImageOps.grayscale(pixels)
-    lum = ImageOps.autocontrast(lum, cutoff=1)
-    lum = ImageEnhance.Contrast(lum).enhance(1.08)
-    chars = '.:;-=+*#%@'
-    out = []
-    for y in range(rows):
-        for x in range(cols):
-            dx = (x + 0.5 - cols / 2) / (cols / 2)
-            dy = (y + 0.5 - rows / 2) / (rows / 2)
-            if dx * dx + dy * dy > 1:
+            if dx * dx + dy * dy > 1.0:
                 continue
-
-            value = lum.getpixel((x, y)) / 255
             r, g, b = pixels.getpixel((x, y))
-            # Lift shadows gently while retaining the original photo colors.
+            luminance = (.2126*r + .7152*g + .0722*b) / 255
+            # Avoid making the bright background dominate the darker face.
+            # Gamma lifts midtones and shadows, then compresses highlights.
             def lift(v):
-                return min(255, round(20 + 235 * (v / 255) ** 0.72))
+                return min(255, round(24 + 218 * (v / 255) ** .68))
             color = f'#{lift(r):02x}{lift(g):02x}{lift(b):02x}'
-            # Keep a small glyph in deep shadows rather than crushing them.
-            char = chars[round(value ** 0.75 * (len(chars) - 1))]
-            px = cx - diameter / 2 + (x + 0.5) * step_x
-            py = cy - diameter / 2 + (y + 0.5) * step_y
-            out.append(
-                f'<text x="{px:.2f}" y="{py:.2f}" '
-                f'fill="{color}" font-size="{font_size}" '
-                f'text-anchor="middle" dominant-baseline="central" '
-                f'font-weight="600" opacity="0.96">{char}</text>'
-            )
+            # Use simple, consistent light glyphs rather than large @/# blocks.
+            char = '+' if luminance >= .33 else (':' if luminance >= .13 else '.')
+            px = cx - diameter / 2 + (x + .5) * step
+            py = cy - diameter / 2 + (y + .5) * step + 2.1
+            out.append(f'<text x="{px:.2f}" y="{py:.2f}" fill="{color}">{char}</text>')
     return ''.join(out)
 
 
@@ -39,37 +20,48 @@ def hero(user, photo):
     repo_count = user['repositories']['totalCount']
     login = escape(user['login'])
     art = portrait(photo)
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1050 430" width="1050" height="430" role="img" aria-labelledby="title desc">
-<title id="title">J B Dhejasvi — Neural Identity</title><desc id="desc">AI and Data Science undergraduate, with an ASCII rendering of her public GitHub avatar.</desc>
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1050 580" width="1050" height="580" role="img" aria-labelledby="title desc">
+<title id="title">J B Dhejasvi — Neural Identity</title><desc id="desc">AI and Data Science undergraduate, with a natural-color ASCII rendering of her GitHub avatar and current GitHub statistics.</desc>
 <defs>
- <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M30 0H0V30" fill="none" stroke="#a78bfa" stroke-opacity=".07"/></pattern>
- <linearGradient id="background" x2="1" y2="1"><stop stop-color="#090d19"/><stop offset="1" stop-color="#12132b"/></linearGradient>
- <linearGradient id="type"><stop stop-color="#f4efff"/><stop offset="1" stop-color="#aa87ff"/></linearGradient>
- <radialGradient id="glow"><stop stop-color="#8152ef" stop-opacity=".20"/><stop offset="1" stop-color="#8152ef" stop-opacity="0"/></radialGradient>
+ <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#8b9bc0" stroke-opacity=".065"/></pattern>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#090e19"/><stop offset="1" stop-color="#0e101e"/></linearGradient>
+ <radialGradient id="glow"><stop stop-color="#c5784d" stop-opacity=".14"/><stop offset="1" stop-color="#c5784d" stop-opacity="0"/></radialGradient>
+ <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d2925d"/><stop offset="1" stop-color="#aa8cec"/></linearGradient>
+ <pattern id="glyphs" width="5.5" height="5.5" patternUnits="userSpaceOnUse"><path d="M2.75 .7V4.8M.7 2.75H4.8" fill="none" stroke="#dce4f4" stroke-width=".85"/></pattern>
 </defs>
-<rect x="1" y="1" width="1048" height="428" rx="22" fill="url(#background)" stroke="#4c3b71" stroke-width="1.5"/>
-<rect x="1" y="1" width="1048" height="428" rx="22" fill="url(#grid)"/>
+<rect x="1" y="1" width="1048" height="578" rx="22" fill="url(#bg)" stroke="#443245" stroke-width="1.3"/>
+<rect x="1" y="1" width="1048" height="578" rx="22" fill="url(#grid)"/>
 <g font-family="monospace">
- <text x="36" y="38" font-size="12" letter-spacing="3" fill="#a78bfa">NEURAL IDENTITY / 01</text>
- <text x="1014" y="38" text-anchor="end" font-size="12" fill="#8993b7">@{login}</text>
- <circle cx="848" cy="225" r="189" fill="url(#glow)"/>
- <circle cx="848" cy="225" r="155" fill="none" stroke="#3b315f"/>
- <circle cx="848" cy="225" r="165" fill="none" stroke="#9d78f9" stroke-width="1.2" stroke-opacity=".75" stroke-dasharray="90 35 5 30 20 45">
-   <animateTransform attributeName="transform" type="rotate" from="0 848 225" to="360 848 225" dur="35s" repeatCount="indefinite"/>
+ <text x="40" y="43" font-size="12" letter-spacing="3" fill="#8d9fbd">NEURAL IDENTITY / 02</text>
+ <text x="1010" y="43" text-anchor="end" font-size="12" fill="#8d9fbd">@{login}</text>
+ <circle cx="838" cy="265" r="212" fill="url(#glow)"/>
+ <circle cx="838" cy="265" r="191" fill="none" stroke="#644553" stroke-opacity=".62"/>
+ <circle cx="838" cy="265" r="181" fill="none" stroke="url(#ring)" stroke-width="1.1" stroke-opacity=".85" stroke-dasharray="100 32 5 24 36 60 90 40">
+   <animateTransform attributeName="transform" type="rotate" from="0 838 265" to="360 838 265" dur="38s" repeatCount="indefinite"/>
  </circle>
- <g>{art}</g>
- <circle cx="41" cy="104" r="4" fill="#6ee7d1"><animate attributeName="opacity" values="1;.3;1" dur="2.4s" repeatCount="indefinite"/></circle>
- <text x="54" y="108" fill="#6ee7d1" font-size="13" letter-spacing="3">HELLO, WORLD. I'M</text>
- <text x="32" y="186" font-size="70" font-weight="bold" fill="url(#type)">J B</text>
- <text x="32" y="261" font-size="70" font-weight="bold" fill="url(#type)">Dhejasvi</text>
- <text x="36" y="296" fill="#e4ddfa" font-size="19">AI &amp; Data Science Undergraduate</text>
- <text x="36" y="326" fill="#9d9ab9" font-size="12" letter-spacing=".8">MACHINE LEARNING / DATA ANALYTICS / COMPUTER VISION</text>
- <line x1="36" y1="364" x2="1014" y2="364" stroke="#3d3558"/>
- <text x="36" y="386" font-size="10" letter-spacing="1.5" fill="#9890b7">PUBLIC REPOSITORIES</text>
- <text x="36" y="410" font-size="21" fill="#e2d7ff">{repo_count}</text>
- <text x="310" y="386" font-size="10" letter-spacing="1.5" fill="#9890b7">CONTRIBUTIONS (PAST YEAR)</text>
- <text x="310" y="410" font-size="21" fill="#e2d7ff">{cal['totalContributions']}</text>
- <text x="1014" y="408" text-anchor="end" font-size="12" fill="#6ee7d1">CHENNAI, INDIA / BUILDING &amp; LEARNING</text>
+ <g font-size="6.35" text-anchor="middle" font-weight="600">{art}</g>
+ <text x="40" y="125" fill="#e29a69" font-size="13" letter-spacing="3">HELLO, WORLD. I'M</text>
+ <g font-size="74" font-weight="bold" fill="url(#glyphs)" stroke="#d4ddf1" stroke-width=".7" paint-order="stroke fill">
+   <text x="38" y="213">J B</text>
+   <text x="38" y="299">Dhejasvi</text>
+ </g>
+ <text x="42" y="354" fill="#e4e9f5" font-size="19" font-weight="bold">AI &amp; Data Science Undergraduate</text>
+ <text x="42" y="384" fill="#9ba9c3" font-size="12">MACHINE LEARNING / DATA ANALYTICS</text>
+ <text x="42" y="405" fill="#9ba9c3" font-size="12">COMPUTER VISION</text>
+ <line x1="40" y1="478" x2="1010" y2="478" stroke="#2f394e"/>
+ <g font-size="10" letter-spacing="1.8" fill="#92a1bc">
+  <text x="42" y="512">PUBLIC REPOSITORIES</text>
+  <text x="300" y="512">CONTRIBUTIONS / YEAR</text>
+  <text x="570" y="512">LOCATION</text>
+  <text x="805" y="512">STATUS</text>
+ </g>
+ <g fill="#e4e9f5" font-size="25" font-weight="bold">
+  <text x="42" y="547">{repo_count}</text>
+  <text x="300" y="547">{cal['totalContributions']}</text>
+ </g>
+ <text x="570" y="545" fill="#e4e9f5" font-size="15">Chennai, India</text>
+ <circle cx="810" cy="540" r="3.5" fill="#e29a69"><animate attributeName="opacity" values="1;.3;1" dur="3s" repeatCount="indefinite"/></circle>
+ <text x="821" y="545" fill="#e4e9f5" font-size="13">BUILDING &amp; LEARNING</text>
 </g></svg>'''
 
 
